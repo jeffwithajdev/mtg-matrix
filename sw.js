@@ -1,18 +1,19 @@
-self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open('mtg-matrix-v1').then((cache) => cache.addAll([
-      'index.html',
-      'manifest.json'
-    ])),
-  );
+const CACHE_NAME = 'matrix-cache-v2';
+
+self.addEventListener('install', (event) => {
+  self.skipWaiting(); // Forces the new version to take over immediately
 });
 
-self.addEventListener('fetch', (e) => {
-  // DO NOT cache API calls, only local app files
-  if (e.request.url.includes('api.scryfall.com')) {
-    return; 
+self.addEventListener('fetch', (event) => {
+  // Ignore API calls to Scryfall - always go to live internet
+  if (event.request.url.includes('api.scryfall.com')) {
+    return fetch(event.request);
   }
-  e.respondWith(
-    caches.match(e.request).then((response) => response || fetch(e.request)),
+
+  // Network First Strategy for everything else
+  event.respondWith(
+    fetch(event.request).catch(() => {
+      return caches.match(event.request);
+    })
   );
 });
