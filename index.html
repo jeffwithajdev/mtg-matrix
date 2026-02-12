@@ -105,6 +105,12 @@
         };
 
         window.onload = () => { renderSession(); };
+        els.cardInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault(); // Prevents the page from refreshing or the keyboard from jumping
+            searchCard();       // Triggers your search function
+        }
+    });
         els.cardInput.addEventListener('keypress', e => { if(e.key === 'Enter') { haptic.click(); searchCard(); } });
         document.getElementById('btnAdd').addEventListener('click', () => { haptic.success(); addToList(); });
         document.getElementById('exportBtn').addEventListener('click', () => { haptic.click(); exportExcel(); });
@@ -230,4 +236,5 @@
 </body>
 
 </html>
+
 
