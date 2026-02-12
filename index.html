@@ -185,7 +185,8 @@
                 App.buyPct = e.target.value / 100;
                 document.getElementById('buyPctLabel').innerText = e.target.value + '%';
                 renderSession();
-            };
+            document.getElementById('versionDisplay').innerText = `v${APP_VERSION}`;
+};
         };
     </script>
 <footer class="mt-8 mb-24 text-center">
@@ -195,4 +196,5 @@
 </footer>
 </body>
 </html>
+
 
