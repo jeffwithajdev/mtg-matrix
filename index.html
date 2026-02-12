@@ -65,6 +65,12 @@
     </div>
 
     <script>
+        const APP_VERSION = '3.5.2'; 
+        console.log("App Version:", APP_VERSION);
+
+        window.onerror = function(msg, url, line) {
+            alert("CRITICAL ERROR: " + msg + "\nLine: " + line);
+        };
         // PWA Service Worker Registration
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js');
@@ -224,3 +230,4 @@
 </body>
 
 </html>
+
