@@ -104,14 +104,19 @@
             btnAdd: document.getElementById('btnAdd')
         };
 
-        window.onload = () => { renderSession(); };
-        els.cardInput.addEventListener('keydown', (e) => {
+        window.onload = () => { 
+    renderSession(); 
+    
+    // Single, clean listener for the mobile "Go" button
+    els.cardInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
-            e.preventDefault(); // Prevents the page from refreshing or the keyboard from jumping
-            searchCard();       // Triggers your search function
+            e.preventDefault(); // Stop mobile browser from refreshing
+            haptic.click();
+            searchCard();
+            els.cardInput.blur(); // Hides the keyboard so you can see the result
         }
     });
-        els.cardInput.addEventListener('keypress', e => { if(e.key === 'Enter') { haptic.click(); searchCard(); } });
+};
         document.getElementById('btnAdd').addEventListener('click', () => { haptic.success(); addToList(); });
         document.getElementById('exportBtn').addEventListener('click', () => { haptic.click(); exportExcel(); });
         document.getElementById('clearBtn').addEventListener('click', () => { haptic.delete(); clearSession(); });
@@ -236,5 +241,6 @@
 </body>
 
 </html>
+
 
 
