@@ -8,6 +8,10 @@ self.addEventListener('install', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
+  // DO NOT cache API calls, only local app files
+  if (e.request.url.includes('api.scryfall.com')) {
+    return; 
+  }
   e.respondWith(
     caches.match(e.request).then((response) => response || fetch(e.request)),
   );
