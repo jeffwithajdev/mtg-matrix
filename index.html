@@ -65,182 +65,90 @@
     </div>
 
     <script>
-        const APP_VERSION = '3.5.2'; 
-        console.log("App Version:", APP_VERSION);
+        // --- MTG MATRIX CORE LOGIC v3.5.3 ---
+const APP_VERSION = '3.5.3'; 
+console.log("App Version:", APP_VERSION);
 
-        window.onerror = function(msg, url, line) {
-            alert("CRITICAL ERROR: " + msg + "\nLine: " + line);
-        };
-        // PWA Service Worker Registration
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js');
-        }
-
-        // Haptic Feedback Engine
-        const haptic = {
-            click: () => { if(navigator.vibrate) navigator.vibrate(40); },
-            delete: () => { if(navigator.vibrate) navigator.vibrate([30, 50, 30]); },
-            success: () => { if(navigator.vibrate) navigator.vibrate(70); }
-        };
-
-        const App = {
-            session: JSON.parse(localStorage.getItem('mtg_matrix_v35p')) || [],
-            allPrints: [],
-            activeCard: null,
-            activeFinish: 'nonfoil',
-            buyPct: 0.60
-        };
-
-        const els = {
-            cardInput: document.getElementById('cardInput'),
-            setSelect: document.getElementById('setSelect'),
-            qtyInput: document.getElementById('qtyInput'),
-            buyTotal: document.getElementById('buyPrice'),
-            sessionContainer: document.getElementById('sessionContainer'),
-            cardArt: document.getElementById('cardArt'),
-            liveSetBadge: document.getElementById('liveSetBadge'),
-            liveMatrix: document.getElementById('liveMatrix'),
-            countLabel: document.getElementById('countLabel'),
-            btnAdd: document.getElementById('btnAdd')
-        };
-
-        window.onload = () => { 
-    renderSession(); 
-    
-    // Single, clean listener for the mobile "Go" button
-    els.cardInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            console.log("Mobile Go Triggered");
-            searchCard(); // This MUST be called before blur
-            this.blur();  // Hides keyboard
-        }
-    });
+// Error catcher (Must be at the very top)
+window.onerror = function(msg, url, line) {
+    alert("CRITICAL ERROR: " + msg + "\nLine: " + line);
 };
-        document.getElementById('btnAdd').addEventListener('click', () => { haptic.success(); addToList(); });
-        document.getElementById('exportBtn').addEventListener('click', () => { haptic.click(); exportExcel(); });
-        document.getElementById('clearBtn').addEventListener('click', () => { haptic.delete(); clearSession(); });
-        document.getElementById('btnFoil').addEventListener('click', () => { haptic.click(); setFinish('foil'); });
-        document.getElementById('btnNonfoil').addEventListener('click', () => { haptic.click(); setFinish('nonfoil'); });
-        els.setSelect.addEventListener('change', updateLiveView);
 
-        async function searchCard() {
-    const name = els.cardInput.value.trim();
+// Global State
+const App = {
+    session: JSON.parse(localStorage.getItem('mtg_matrix_v35p')) || [],
+    allPrints: [],
+    activeCard: null,
+    activeFinish: 'nonfoil',
+    buyPct: 0.60
+};
+
+// Define searchCard globally first so listeners can see it
+async function searchCard() {
+    const name = document.getElementById('cardInput').value.trim();
     if(!name) return;
     
-    // Scryfall 2026 Security Requirement: 
-    // You MUST provide a User-Agent and Accept header.
     const headers = {
         'Accept': 'application/json;q=0.9,*/*;q=0.8',
-        'User-Agent': 'MTGMatrixPWA/3.5 (Contact: User@GitHub)' 
+        'User-Agent': 'MTGMatrixPWA/3.5 (Contact: JeffWithAJDev@GitHub)' 
     };
 
     try {
         const res = await fetch(`https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(name)}"&unique=prints`, { headers });
+        if (!res.ok) throw new Error("Card not found or API error.");
         
-        if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(`API Error: ${errorData.details || res.statusText}`);
-        }
-
         const data = await res.json();
         App.allPrints = data.data;
-        els.setSelect.innerHTML = App.allPrints.map((c, i) => `<option value="${i}">${c.set_name}</option>`).join('');
-        els.setSelect.disabled = false;
+        
+        const sel = document.getElementById('setSelect');
+        sel.innerHTML = App.allPrints.map((c, i) => `<option value="${i}">${c.set_name}</option>`).join('');
+        sel.disabled = false;
+        
         updateLiveView();
     } catch(e) { 
         alert("Search Failed: " + e.message); 
-        console.error(e);
     }
 }
 
-        function setFinish(f) { App.activeFinish = f; updateLiveView(); }
+function updateLiveView() {
+    const selIdx = document.getElementById('setSelect').value;
+    App.activeCard = App.allPrints[selIdx];
+    const art = document.getElementById('cardArt');
+    art.src = App.activeCard.image_uris?.normal || App.activeCard.card_faces?.[0]?.image_uris?.normal;
+    document.getElementById('liveSetBadge').innerHTML = `<img src="https://svgs.scryfall.io/sets/${App.activeCard.set.toLowerCase()}.svg" class="set-icon-img"> ${App.activeCard.set_name}`;
+    document.getElementById('liveMatrix').classList.remove('hidden');
+}
 
-        function updateLiveView() {
-            App.activeCard = App.allPrints[els.setSelect.value];
-            els.cardArt.src = App.activeCard.image_uris?.normal || App.activeCard.card_faces?.[0]?.image_uris?.normal;
-            els.liveSetBadge.innerHTML = `<img src="https://svgs.scryfall.io/sets/${App.activeCard.set.toLowerCase()}.svg" class="set-icon-img"> ${App.activeCard.set_name}`;
-            els.liveMatrix.classList.remove('hidden');
+// ... (Keep your addToList, saveAndRender, renderSession, and clearSession functions here) ...
+
+window.onload = () => {
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(err => console.log("SW Register Fail", err));
+    }
+
+    renderSession();
+
+    // Setup Mobile Keyboard Listener
+    document.getElementById('cardInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            searchCard();
+            this.blur(); // Retract keyboard
         }
+    });
 
-        function addToList() {
-            if(!App.activeCard) return;
-            const qty = parseInt(els.qtyInput.value) || 1;
-            const rawPrice = App.activeFinish === 'foil' ? (App.activeCard.prices.usd_foil || App.activeCard.prices.usd) : App.activeCard.prices.usd;
-            const unitPrice = parseFloat(rawPrice || 0);
-
-            App.session.unshift({
-                id: Date.now(),
-                qty: qty,
-                name: App.activeCard.name,
-                set_icon: `https://svgs.scryfall.io/sets/${App.activeCard.set.toLowerCase()}.svg`,
-                finish: App.activeFinish,
-                unitPrice: unitPrice,
-                totalPrice: unitPrice * qty
-            });
-
-            saveAndRender();
-            els.cardInput.value = '';
-            els.qtyInput.value = 1;
-            els.cardInput.focus();
-        }
-
-        function saveAndRender() {
-            localStorage.setItem('mtg_matrix_v35p', JSON.stringify(App.session));
-            renderSession();
-        }
-
-        function clearSession() { if(confirm("Wipe binder?")) { App.session = []; saveAndRender(); } }
-
-        function renderSession() {
-            let totalOffer = 0;
-            let totalQty = 0;
-            
-            els.sessionContainer.innerHTML = App.session.map(c => {
-                totalOffer += (c.totalPrice * App.buyPct);
-                totalQty += c.qty;
-                let heat = 'heat-bulk';
-                if(c.unitPrice >= 50) heat = 'heat-whale';
-                else if(c.unitPrice >= 20) heat = 'heat-high';
-                else if(c.unitPrice >= 5) heat = 'heat-mid';
-
-                return `
-                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center shadow-md ${heat}">
-                    <div>
-                        <p class="text-sm font-bold text-white">${c.name} <span class="text-[8px] text-slate-500 uppercase">${c.finish}</span></p>
-                        <div class="flex items-center gap-2 mt-1">
-                             <img src="${c.set_icon}" class="set-icon-img opacity-60">
-                             <span class="text-orange-500 font-mono font-bold">x${c.qty}</span>
-                        </div>
-                    </div>
-                    <div class="text-right flex items-center gap-4">
-                        <div>
-                            <p class="text-[9px] text-slate-500 font-bold uppercase">Total</p>
-                            <p class="text-emerald-400 font-mono font-bold">$${c.totalPrice.toFixed(2)}</p>
-                        </div>
-                        <button onclick="removeCard(${c.id})" class="text-slate-700 p-2">✕</button>
-                    </div>
-                </div>`;
-            }).join('');
-
-            els.buyTotal.innerText = `$${totalOffer.toFixed(2)}`;
-            els.countLabel.innerText = `${totalQty} Cards in Binder`;
-        }
-
-        window.removeCard = (id) => { haptic.delete(); App.session = App.session.filter(c => c.id !== id); saveAndRender(); };
-
-        function exportExcel() {
-            if(App.session.length === 0) return;
-            const rows = App.session.map(c => ({ Qty: c.qty, Card: c.name, Finish: c.finish, Total: c.totalPrice }));
-            const ws = XLSX.utils.json_to_sheet(rows);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Binder");
-            XLSX.writeFile(wb, `Matrix_Session.xlsx`);
-        }
+    // Button Click Listeners
+    document.getElementById('btnAdd').onclick = addToList;
+    document.getElementById('setSelect').onchange = updateLiveView;
+    document.getElementById('btnFoil').onclick = () => { App.activeFinish = 'foil'; updateLiveView(); };
+    document.getElementById('btnNonfoil').onclick = () => { App.activeFinish = 'nonfoil'; updateLiveView(); };
+};
     </script>
 </body>
 
 </html>
+
 
 
 
