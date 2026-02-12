@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MTG Matrix Pro</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; touch-action: manipulation; }
+        .heat-whale { border-left: 6px solid #ef4444 !important; } 
+        .heat-high  { border-left: 6px solid #f59e0b !important; }
+        .heat-mid   { border-left: 6px solid #a855f7 !important; }
+        .heat-low   { border-left: 6px solid #3b82f6 !important; }
+        .heat-bulk  { border-left: 6px solid #64748b !important; }
+        .set-icon-img { width: 22px; height: 22px; filter: brightness(0) invert(1); display: inline-block; }
+        input, select { font-size: 16px !important; } /* Prevents iOS/Android auto-zoom */
+        .btn-active:active { transform: scale(0.96); transition: 0.1s; }
+    </style>
+</head>
+<body class="p-2 sm:p-4 pb-24">
+
+    <div class="max-w-xl mx-auto space-y-4">
+        <header class="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-md p-4 rounded-2xl border border-slate-700 shadow-xl flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-black text-orange-500 italic uppercase">MTG Matrix <span class="text-white text-[8px]">v3.5P</span></h1>
+                <p id="countLabel" class="text-[10px] text-slate-400 font-bold uppercase">0 Cards In Binder</p>
+            </div>
+            <div class="text-right">
+                <p class="text-[9px] uppercase text-slate-500 font-bold">Offer Total</p>
+                <p id="buyPrice" class="text-2xl font-mono text-sky-400 font-bold">$0.00</p>
+            </div>
+        </header>
+
+        <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-lg space-y-3">
+            <div class="flex gap-2">
+                <input id="cardInput" type="text" placeholder="Card Name..." class="flex-grow bg-black p-4 rounded-xl border border-slate-700 outline-none focus:border-orange-500 transition">
+                <input id="qtyInput" type="number" value="1" class="w-16 bg-black p-4 rounded-xl border border-slate-700 text-center font-bold text-orange-500">
+            </div>
+            
+            <select id="setSelect" disabled class="w-full bg-black p-3 rounded-xl border border-slate-700 text-sm disabled:opacity-30"></select>
+
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btnNonfoil" class="py-3 rounded-lg border border-slate-700 bg-slate-800 text-[10px] font-bold uppercase btn-active">Non-Foil</button>
+                <button id="btnFoil" class="py-3 rounded-lg border border-slate-700 bg-slate-800 text-[10px] font-bold uppercase btn-active">Foil</button>
+            </div>
+
+            <button id="btnAdd" class="w-full bg-emerald-600 text-white font-black py-5 rounded-2xl text-lg shadow-lg uppercase tracking-wider btn-active">Add To Session</button>
+        </div>
+
+        <div id="liveMatrix" class="hidden bg-black/40 rounded-2xl border border-slate-800 overflow-hidden p-4 flex flex-col items-center gap-2">
+            <img id="cardArt" src="" class="w-40 rounded-lg shadow-2xl">
+            <div id="liveSetBadge" class="text-[10px] text-slate-400 uppercase font-bold"></div>
+        </div>
+
+        <div id="sessionContainer" class="space-y-2">
+            </div>
+
+        <div class="fixed bottom-4 left-4 right-4 flex gap-2">
+            <button id="exportBtn" class="flex-grow bg-sky-600 text-white font-bold py-4 rounded-xl shadow-2xl uppercase text-xs btn-active">Download .XLSX</button>
+            <button id="clearBtn" class="bg-red-900/50 text-red-500 px-6 py-4 rounded-xl border border-red-900/30 uppercase text-[10px] font-bold btn-active">Clear</button>
+        </div>
+    </div>
+
+    <script>
+        // PWA Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+
+        // Haptic Feedback Engine
+        const haptic = {
+            click: () => { if(navigator.vibrate) navigator.vibrate(40); },
+            delete: () => { if(navigator.vibrate) navigator.vibrate([30, 50, 30]); },
+            success: () => { if(navigator.vibrate) navigator.vibrate(70); }
+        };
+
+        const App = {
+            session: JSON.parse(localStorage.getItem('mtg_matrix_v35p')) || [],
+            allPrints: [],
+            activeCard: null,
+            activeFinish: 'nonfoil',
+            buyPct: 0.60
+        };
+
+        const els = {
+            cardInput: document.getElementById('cardInput'),
+            setSelect: document.getElementById('setSelect'),
+            qtyInput: document.getElementById('qtyInput'),
+            buyTotal: document.getElementById('buyPrice'),
+            sessionContainer: document.getElementById('sessionContainer'),
+            cardArt: document.getElementById('cardArt'),
+            liveSetBadge: document.getElementById('liveSetBadge'),
+            liveMatrix: document.getElementById('liveMatrix'),
+            countLabel: document.getElementById('countLabel'),
+            btnAdd: document.getElementById('btnAdd')
+        };
+
+        window.onload = () => { renderSession(); };
+        els.cardInput.addEventListener('keypress', e => { if(e.key === 'Enter') { haptic.click(); searchCard(); } });
+        document.getElementById('btnAdd').addEventListener('click', () => { haptic.success(); addToList(); });
+        document.getElementById('exportBtn').addEventListener('click', () => { haptic.click(); exportExcel(); });
+        document.getElementById('clearBtn').addEventListener('click', () => { haptic.delete(); clearSession(); });
+        document.getElementById('btnFoil').addEventListener('click', () => { haptic.click(); setFinish('foil'); });
+        document.getElementById('btnNonfoil').addEventListener('click', () => { haptic.click(); setFinish('nonfoil'); });
+        els.setSelect.addEventListener('change', updateLiveView);
+
+        async function searchCard() {
+            const name = els.cardInput.value.trim();
+            if(!name) return;
+            try {
+                const res = await fetch(`https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(name)}"&unique=prints`);
+                const data = await res.json();
+                if(data.status === 404) throw new Error("Not Found");
+                App.allPrints = data.data;
+                els.setSelect.innerHTML = App.allPrints.map((c, i) => `<option value="${i}">${c.set_name}</option>`).join('');
+                els.setSelect.disabled = false;
+                updateLiveView();
+            } catch(e) { alert(e.message); }
+        }
+
+        function setFinish(f) { App.activeFinish = f; updateLiveView(); }
+
+        function updateLiveView() {
+            App.activeCard = App.allPrints[els.setSelect.value];
+            els.cardArt.src = App.activeCard.image_uris?.normal || App.activeCard.card_faces?.[0]?.image_uris?.normal;
+            els.liveSetBadge.innerHTML = `<img src="https://svgs.scryfall.io/sets/${App.activeCard.set.toLowerCase()}.svg" class="set-icon-img"> ${App.activeCard.set_name}`;
+            els.liveMatrix.classList.remove('hidden');
+        }
+
+        function addToList() {
+            if(!App.activeCard) return;
+            const qty = parseInt(els.qtyInput.value) || 1;
+            const rawPrice = App.activeFinish === 'foil' ? (App.activeCard.prices.usd_foil || App.activeCard.prices.usd) : App.activeCard.prices.usd;
+            const unitPrice = parseFloat(rawPrice || 0);
+
+            App.session.unshift({
+                id: Date.now(),
+                qty: qty,
+                name: App.activeCard.name,
+                set_icon: `https://svgs.scryfall.io/sets/${App.activeCard.set.toLowerCase()}.svg`,
+                finish: App.activeFinish,
+                unitPrice: unitPrice,
+                totalPrice: unitPrice * qty
+            });
+
+            saveAndRender();
+            els.cardInput.value = '';
+            els.qtyInput.value = 1;
+            els.cardInput.focus();
+        }
+
+        function saveAndRender() {
+            localStorage.setItem('mtg_matrix_v35p', JSON.stringify(App.session));
+            renderSession();
+        }
+
+        function clearSession() { if(confirm("Wipe binder?")) { App.session = []; saveAndRender(); } }
+
+        function renderSession() {
+            let totalOffer = 0;
+            let totalQty = 0;
+            
+            els.sessionContainer.innerHTML = App.session.map(c => {
+                totalOffer += (c.totalPrice * App.buyPct);
+                totalQty += c.qty;
+                let heat = 'heat-bulk';
+                if(c.unitPrice >= 50) heat = 'heat-whale';
+                else if(c.unitPrice >= 20) heat = 'heat-high';
+                else if(c.unitPrice >= 5) heat = 'heat-mid';
+
+                return `
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center shadow-md ${heat}">
+                    <div>
+                        <p class="text-sm font-bold text-white">${c.name} <span class="text-[8px] text-slate-500 uppercase">${c.finish}</span></p>
+                        <div class="flex items-center gap-2 mt-1">
+                             <img src="${c.set_icon}" class="set-icon-img opacity-60">
+                             <span class="text-orange-500 font-mono font-bold">x${c.qty}</span>
+                        </div>
+                    </div>
+                    <div class="text-right flex items-center gap-4">
+                        <div>
+                            <p class="text-[9px] text-slate-500 font-bold uppercase">Total</p>
+                            <p class="text-emerald-400 font-mono font-bold">$${c.totalPrice.toFixed(2)}</p>
+                        </div>
+                        <button onclick="removeCard(${c.id})" class="text-slate-700 p-2">✕</button>
+                    </div>
+                </div>`;
+            }).join('');
+
+            els.buyTotal.innerText = `$${totalOffer.toFixed(2)}`;
+            els.countLabel.innerText = `${totalQty} Cards in Binder`;
+        }
+
+        window.removeCard = (id) => { haptic.delete(); App.session = App.session.filter(c => c.id !== id); saveAndRender(); };
+
+        function exportExcel() {
+            if(App.session.length === 0) return;
+            const rows = App.session.map(c => ({ Qty: c.qty, Card: c.name, Finish: c.finish, Total: c.totalPrice }));
+            const ws = XLSX.utils.json_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Binder");
+            XLSX.writeFile(wb, `Matrix_Session.xlsx`);
+        }
+    </script>
+</body>
+</html>
