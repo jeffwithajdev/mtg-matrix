@@ -108,12 +108,12 @@
     renderSession(); 
     
     // Single, clean listener for the mobile "Go" button
-    els.cardInput.addEventListener('keydown', (e) => {
+    els.cardInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
-            e.preventDefault(); // Stop mobile browser from refreshing
-            haptic.click();
-            searchCard();
-            els.cardInput.blur(); // Hides the keyboard so you can see the result
+            e.preventDefault();
+            console.log("Mobile Go Triggered");
+            searchCard(); // This MUST be called before blur
+            this.blur();  // Hides keyboard
         }
     });
 };
@@ -241,6 +241,7 @@
 </body>
 
 </html>
+
 
 
 
