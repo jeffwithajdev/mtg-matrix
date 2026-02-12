@@ -93,7 +93,9 @@
             const name = document.getElementById('cardInput').value.trim();
             if(!name) return;
             try {
-                const res = await fetch(`https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(name)}"&unique=prints`);
+                const res = await fetch(`https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(name)}"&unique=prints`, {
+    headers: { 'User-Agent': 'MTGMatrix/3.6', 'Accept': 'application/json' }
+});
                 const data = await res.json();
                 App.allPrints = data.data;
                 const sel = document.getElementById('setSelect');
@@ -177,23 +179,35 @@
             XLSX.writeFile(wb, "Binder_Export.xlsx");
         }
 
-        window.onload = () => {
+        window.addEventListener('load', () => {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js');
+            }
+
             renderSession();
+
+            // This looks for the ID in the HTML below
+            const versionEl = document.getElementById('versionDisplay');
+            if (versionEl) {
+                // Make sure '3.6' matches the version in your header
+                versionEl.innerText = `v3.6`; 
+            }
+
             document.getElementById('btnFoil').onclick = () => toggleFinish('foil');
             document.getElementById('btnNonfoil').onclick = () => toggleFinish('nonfoil');
+            
             document.getElementById('buyPctRange').oninput = (e) => {
                 App.buyPct = e.target.value / 100;
                 document.getElementById('buyPctLabel').innerText = e.target.value + '%';
                 renderSession();
-            document.getElementById('versionDisplay').innerText = `v${APP_VERSION}`;
-};
-        };
-    </script>
-<footer class="mt-8 mb-24 text-center">
-    <p class="text-[10px] text-slate-600 font-mono uppercase tracking-widest">
-        MTG Matrix Engine <span id="versionDisplay">v0.0.0</span>
-    </p>
-</footer>
+            };
+        });
+    </script> <footer class="mt-8 mb-24 text-center">
+        <p class="text-[10px] text-slate-600 font-mono uppercase tracking-widest">
+            MTG Matrix Engine <span id="versionDisplay">v0.0.0</span>
+        </p>
+    </footer>
+
 </body>
 </html>
 
