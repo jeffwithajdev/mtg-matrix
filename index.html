@@ -176,9 +176,47 @@
         window.removeCard = (id) => { haptic.delete(); App.session = App.session.filter(c => c.id !== id); localStorage.setItem('mtg_matrix_v35p', JSON.stringify(App.session)); renderSession(); };
         function clearSession() { if(confirm("Wipe session?")) { App.session = []; localStorage.setItem('mtg_matrix_v35p', JSON.stringify(App.session)); renderSession(); } }
         function exportExcel() {
-            const ws = XLSX.utils.json_to_sheet(App.session.map(c => ({Qty: c.qty, Card: c.name, Finish: c.finish, Total: c.totalPrice})));
-            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Binder"); XLSX.writeFile(wb, "Matrix_Export.xlsx");
-        }
+    if (App.session.length === 0) return;
+
+    // 1. Prepare the card data
+    const data = App.session.map(c => ({
+        Qty: c.qty,
+        Card: c.name,
+        Finish: c.finish,
+        "Unit Price": c.unitPrice.toFixed(2),
+        "Total USD": c.totalPrice.toFixed(2)
+    }));
+
+    // 2. Calculate Totals
+    const totalUSD = App.session.reduce((sum, c) => sum + c.totalPrice, 0);
+    const offerTotal = totalUSD * App.buyPct;
+
+    // 3. Add blank row and summary rows
+    data.push({}); // Space
+    data.push({ 
+        Qty: "SUMMARY", 
+        Card: "", 
+        Finish: "", 
+        "Unit Price": "Binder Total:", 
+        "Total USD": totalUSD.toFixed(2) 
+    });
+    data.push({ 
+        Qty: "", 
+        Card: "", 
+        Finish: "", 
+        "Unit Price": `Offer (${(App.buyPct * 100).toFixed(0)}%):`, 
+        "Total USD": offerTotal.toFixed(2) 
+    });
+
+    // 4. Create and download
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "MTG Matrix Export");
+    
+    // Generates filename with current date: Matrix_2024-05-20.xlsx
+    const date = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `Matrix_Session_${date}.xlsx`);
+}
 
         window.addEventListener('load', () => {
             if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
@@ -202,3 +240,4 @@
 
 </body>
 </html>
+
