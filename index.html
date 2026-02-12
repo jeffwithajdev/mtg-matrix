@@ -108,18 +108,34 @@
         els.setSelect.addEventListener('change', updateLiveView);
 
         async function searchCard() {
-            const name = els.cardInput.value.trim();
-            if(!name) return;
-            try {
-                const res = await fetch(`https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(name)}"&unique=prints`);
-                const data = await res.json();
-                if(data.status === 404) throw new Error("Not Found");
-                App.allPrints = data.data;
-                els.setSelect.innerHTML = App.allPrints.map((c, i) => `<option value="${i}">${c.set_name}</option>`).join('');
-                els.setSelect.disabled = false;
-                updateLiveView();
-            } catch(e) { alert(e.message); }
+    const name = els.cardInput.value.trim();
+    if(!name) return;
+    
+    // Scryfall 2026 Security Requirement: 
+    // You MUST provide a User-Agent and Accept header.
+    const headers = {
+        'Accept': 'application/json;q=0.9,*/*;q=0.8',
+        'User-Agent': 'MTGMatrixPWA/3.5 (Contact: User@GitHub)' 
+    };
+
+    try {
+        const res = await fetch(`https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(name)}"&unique=prints`, { headers });
+        
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(`API Error: ${errorData.details || res.statusText}`);
         }
+
+        const data = await res.json();
+        App.allPrints = data.data;
+        els.setSelect.innerHTML = App.allPrints.map((c, i) => `<option value="${i}">${c.set_name}</option>`).join('');
+        els.setSelect.disabled = false;
+        updateLiveView();
+    } catch(e) { 
+        alert("Search Failed: " + e.message); 
+        console.error(e);
+    }
+}
 
         function setFinish(f) { App.activeFinish = f; updateLiveView(); }
 
@@ -206,4 +222,5 @@
         }
     </script>
 </body>
+
 </html>
