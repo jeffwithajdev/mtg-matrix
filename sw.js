@@ -1,19 +1,24 @@
-const CACHE_NAME = 'matrix-cache-v2';
+const CACHE_NAME = 'matrix-v4-force-update'; // Changed name to force a reset
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Forces the new version to take over immediately
+    self.skipWaiting(); 
+});
+
+self.addEventListener('activate', (event) => {
+    // This wipes out the old "Ghost" cache
+    event.waitUntil(
+        caches.keys().then((names) => {
+            return Promise.all(names.map(name => caches.delete(name)));
+        })
+    );
+    self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
-  // Ignore API calls to Scryfall - always go to live internet
-  if (event.request.url.includes('api.scryfall.com')) {
-    return fetch(event.request);
-  }
-
-  // Network First Strategy for everything else
-  event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match(event.request);
-    })
-  );
+    if (event.request.url.includes('api.scryfall.com')) {
+        return fetch(event.request);
+    }
+    event.respondWith(
+        fetch(event.request).catch(() => caches.match(event.request))
+    );
 });
